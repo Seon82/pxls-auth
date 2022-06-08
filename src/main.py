@@ -11,17 +11,11 @@ watched_users = ExpiringDict(3600 * 5)
 app = Sanic("pxls_auth")
 
 
-class InvalidUser(Exception):
-    pass
-
-
 class AuthenticationError(Exception):
     pass
 
 
 def format_error(error: Exception) -> text:
-    if isinstance(error, InvalidUser):
-        return text("User does not exist.", status=404)
     if isinstance(error, ConnectionError):
         return text("Could not connect to pxls.space, please try again later.", status=500)
     if isinstance(error, AuthenticationError):
@@ -42,20 +36,18 @@ async def get_faction_users(session) -> list[str]:
             return tree.xpath(
                 f"//*/div[@data-faction-id={os.environ['FACTION_ID']}]//*/div/@data-member"
             )
-        elif resp.status == 404:
-            raise InvalidUser
         elif resp.status == 403:
             raise AuthenticationError
         else:
             raise ConnectionError
 
 
-async def get_discord_account(session, username) -> str:
+async def check_user_exists(session, username) -> bool:
     async with session.get(url=f"https://pxls.space/profile/{username}") as resp:
         if resp.status == 200:
-            body = await resp.text()
-            tree = html.document_fromstring(body)
-            return tree.xpath("//th[text()='Discord Tag']/following-sibling::td/text()")[0]
+            return True
+        elif resp.status == 404:
+            return False
         elif resp.status == 403:
             raise AuthenticationError
         else:
@@ -65,7 +57,8 @@ async def get_discord_account(session, username) -> str:
 @app.route("/watch/<username>")
 async def watch(request, username):
     try:
-        await get_discord_account(app.ctx.http_session, username)
+        if not await check_user_exists(app.ctx.http_session, username):
+            return text("User does not exist.", status=404)
         if username not in await get_faction_users(app.ctx.http_session):
             watched_users[username] = None
             return text("Watching for the next 5 minutes.", status=200)
@@ -96,4 +89,9 @@ async def create_http_client(app, _):
 
 if __name__ == "__main__":
     load_dotenv()
-    app.run(host="0.0.0.0", port=os.getenv("PORT", 8080), debug=os.getenv("DEBUG", False))
+    app.run(
+        host="0.0.0.0",
+        port=os.getenv("PORT", 8080),
+        debug=os.getenv("DEBUG", False),
+        auto_reload=os.getenv("DEBUG", False),
+    )
