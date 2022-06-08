@@ -77,7 +77,10 @@ async def check(request, username):
         )
 
     try:
-        return text(str(username in await get_faction_users(app.ctx.http_session)))
+        valid_check = username in await get_faction_users(app.ctx.http_session)
+        if valid_check:
+            watched_users.pop(username)
+        return text(str(valid_check))
     except Exception as error:
         format_error(error)
 
