@@ -1,5 +1,4 @@
 import os
-from multiprocessing import AuthenticationError
 
 from aiohttp import ClientSession
 from dotenv import load_dotenv
@@ -13,6 +12,10 @@ app = Sanic("pxls_auth")
 
 
 class InvalidUser(Exception):
+    pass
+
+
+class AuthenticationError(Exception):
     pass
 
 
